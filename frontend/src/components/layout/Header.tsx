@@ -31,7 +31,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
     .slice(0, 2) || 'U';
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-gray-200 bg-white/80 px-4 backdrop-blur-sm dark:border-gray-700 dark:bg-gray-900/80 lg:px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-gray-200 bg-white/80 px-4 backdrop-blur-xl dark:border-primary-500/20 dark:bg-[#0f172a]/60 lg:px-6">
       {/* Left */}
       <button onClick={onMenuClick} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 lg:hidden dark:hover:bg-gray-800">
         <Menu className="h-5 w-5" />

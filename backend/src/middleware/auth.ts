@@ -1,43 +1,41 @@
 import { Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import { env } from '../config/env.js';
 import { AuthRequest } from '../types/index.js';
-import { prisma } from '../lib/prisma.js';
 import { UnauthorizedError } from './error-handler.js';
+import { verifyAccessToken } from '../services/auth.service.js';
+import User from '../models/User.js';
 
-interface JwtPayload {
-  userId: string;
-}
-
-export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const authenticate = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    let token;
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      throw new UnauthorizedError('Missing or invalid token');
+    }
+
+    const token = authHeader.split(' ')[1];
+    const payload = verifyAccessToken(token);
+
+    const user = await User.findById(payload.userId);
     
-    if (req.headers.authorization?.startsWith('Bearer ')) {
-      token = req.headers.authorization.split(' ')[1];
-    } else if (req.cookies?.accessToken) {
-      token = req.cookies.accessToken;
-    }
-
-    if (!token) {
-      throw new UnauthorizedError('Authentication required');
-    }
-
-    const decoded = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
-
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-    });
-
     if (!user) {
       throw new UnauthorizedError('User not found');
     }
 
-    const { passwordHash, ...userWithoutPassword } = user;
-    req.user = userWithoutPassword;
+    req.user = {
+      id: user.id,
+      email: user.email,
+      name: user.name || null,
+      companyName: user.companyName || null,
+      role: user.role,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
 
     next();
   } catch (error) {
-    next(new UnauthorizedError('Invalid or expired token'));
+    next(new UnauthorizedError('Authentication failed'));
   }
 };

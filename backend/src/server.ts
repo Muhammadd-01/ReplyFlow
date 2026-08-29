@@ -10,14 +10,28 @@ import rateLimit from 'express-rate-limit';
 
 import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
-import { prisma } from './lib/prisma.js';
+
+import mongoose from 'mongoose';
 import { redis } from './config/redis.js';
+import { connectDB } from './lib/mongoose.js';
+
 import { errorHandler } from './middleware/error-handler.js';
 import authRoutes from './routes/auth.routes.js';
+import importRoutes from './routes/import.routes.js';
+import contactRoutes from './routes/contact.routes.js';
+import whatsappRoutes from './routes/whatsapp.routes.js';
+import campaignRoutes from './routes/campaign.routes.js';
+import chatRoutes from './routes/chat.routes.js';
+import inboxRoutes from './routes/inbox.routes.js';
+import exportRoutes from './routes/export.routes.js';
+import dashboardRoutes from './routes/dashboard.routes.js';
 import { initializeSocket } from './socket/index.js';
 
 const app = express();
 const httpServer = createServer(app);
+
+// Connect to MongoDB
+connectDB();
 
 // Middleware
 app.use(helmet());
@@ -34,6 +48,14 @@ app.use(limiter);
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/import', importRoutes);
+app.use('/api/contacts', contactRoutes);
+app.use('/api/whatsapp', whatsappRoutes);
+app.use('/api/campaigns', campaignRoutes);
+app.use('/api/chats', chatRoutes);
+app.use('/api/inbox', inboxRoutes);
+app.use('/api/export', exportRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Error Handling
 app.use(errorHandler);
@@ -51,7 +73,7 @@ httpServer.listen(PORT, () => {
 const shutdown = async () => {
   logger.info('Shutting down server gracefully...');
   httpServer.close();
-  await prisma.$disconnect();
+  await mongoose.disconnect();
   redis.quit();
   process.exit(0);
 };

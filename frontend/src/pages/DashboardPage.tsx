@@ -1,104 +1,178 @@
-import { useAuth } from '@/store/AuthContext';
-import StatCard from '@/components/ui/StatCard';
-import { Card, CardContent } from '@/components/ui/Card';
-import Button from '@/components/ui/Button';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
-import {
-  MessageSquare,
-  Users,
-  Send,
-  Mail,
-  Inbox,
-  TrendingUp,
-  Upload,
-  Plus,
-  Zap,
-} from 'lucide-react';
+import { Users, Send, MessageSquare, Activity, ArrowRight, Play } from 'lucide-react';
+import { Card } from '@/components/ui/Card';
+import Badge from '@/components/ui/Badge';
+import { dashboardApi } from '@/api/dashboard';
+import { useAuth } from '@/store/AuthContext';
 
 export default function DashboardPage() {
-  const { user } = useAuth();
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn: dashboardApi.getStats,
+  });
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'RUNNING': return <Badge variant="info">Running</Badge>;
+      case 'PAUSED': return <Badge variant="warning">Paused</Badge>;
+      case 'COMPLETED': return <Badge variant="success">Completed</Badge>;
+      case 'FAILED': return <Badge variant="danger">Failed</Badge>;
+      case 'STOPPED': return <Badge variant="danger">Stopped</Badge>;
+      default: return <Badge variant="default">{status}</Badge>;
+    }
+  };
 
   return (
     <div className="space-y-6">
-      {/* Welcome */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Welcome back, {user?.name?.split(' ')[0] || 'User'} 👋
-        </h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Here's what's happening with your campaigns
-        </p>
+      <div className="flex justify-between items-end">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Welcome back, {user?.name?.split(' ')[0] || 'User'}! 👋
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400">Here's an overview of your messaging campaigns.</p>
+        </div>
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <StatCard title="WhatsApp" value="Disconnected" icon={MessageSquare} description="Not connected" />
-        <StatCard title="Total Contacts" value="0" icon={Users} />
-        <StatCard title="Total Campaigns" value="0" icon={Send} />
-        <StatCard title="Messages Sent" value="0" icon={Mail} />
-        <StatCard title="Total Replies" value="0" icon={Inbox} />
-        <StatCard title="Success Rate" value="0%" icon={TrendingUp} />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatsCard 
+          title="Total Contacts" 
+          value={isLoading ? '-' : data?.stats.totalContacts.toString() || '0'} 
+          icon={<Users className="text-blue-600 dark:text-blue-400" size={24} />} 
+          trend="+12% from last month"
+          trendUp={true}
+        />
+        <StatsCard 
+          title="Active Campaigns" 
+          value={isLoading ? '-' : data?.stats.activeCampaigns.toString() || '0'} 
+          icon={<Activity className="text-primary-600 dark:text-primary-400" size={24} />} 
+          trend="2 completed this week"
+          trendUp={true}
+        />
+        <StatsCard 
+          title="Messages Sent" 
+          value={isLoading ? '-' : data?.stats.totalMessagesSent.toString() || '0'} 
+          icon={<Send className="text-green-600 dark:text-green-400" size={24} />} 
+          trend="+18% from last month"
+          trendUp={true}
+        />
+        <StatsCard 
+          title="Total Replies" 
+          value={isLoading ? '-' : data?.stats.totalReplies.toString() || '0'} 
+          icon={<MessageSquare className="text-warning-600 dark:text-warning-400" size={24} />} 
+          trend="+5% from last month"
+          trendUp={true}
+        />
       </div>
 
-      {/* Getting Started */}
-      <Card>
-        <CardContent className="py-8">
-          <div className="text-center mb-8">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Get Started with ReplyFlow</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Follow these steps to send your first campaign
-            </p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2 p-6 flex flex-col">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Campaigns</h2>
+            <button 
+              onClick={() => navigate('/campaigns')}
+              className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 flex items-center"
+            >
+              View All <ArrowRight size={16} className="ml-1" />
+            </button>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl mx-auto">
-            {/* Step 1 */}
-            <div className="flex flex-col items-center text-center p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-              <div className="rounded-full bg-primary-100 p-3 dark:bg-primary-900/30 mb-3">
-                <MessageSquare className="h-6 w-6 text-primary-600 dark:text-primary-400" />
+          
+          <div className="flex-1">
+            {isLoading ? (
+              <div className="text-center py-8 text-gray-500">Loading campaigns...</div>
+            ) : data?.recentCampaigns.length === 0 ? (
+              <div className="text-center py-12 flex flex-col items-center border border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
+                <Play className="text-gray-400 mb-3" size={32} />
+                <h3 className="text-gray-900 dark:text-white font-medium mb-1">No campaigns yet</h3>
+                <p className="text-sm text-gray-500 mb-4">Start your first messaging campaign</p>
+                <button 
+                  onClick={() => navigate('/campaigns/new')}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
+                >
+                  Create Campaign
+                </button>
               </div>
-              <h3 className="font-medium text-gray-900 dark:text-white mb-1">1. Connect WhatsApp</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                Scan the QR code to link your WhatsApp
-              </p>
-              <Button size="sm" variant="outline" onClick={() => navigate('/whatsapp')}>
-                <Zap className="h-4 w-4" />
-                Connect
-              </Button>
-            </div>
-
-            {/* Step 2 */}
-            <div className="flex flex-col items-center text-center p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-              <div className="rounded-full bg-green-100 p-3 dark:bg-green-900/30 mb-3">
-                <Upload className="h-6 w-6 text-green-600 dark:text-green-400" />
+            ) : (
+              <div className="space-y-4">
+                {data?.recentCampaigns.map((campaign) => (
+                  <div key={campaign.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700/50">
+                    <div>
+                      <h3 className="font-medium text-gray-900 dark:text-white">{campaign.name}</h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {campaign.sentCount} / {campaign.totalContacts} messages sent
+                      </p>
+                    </div>
+                    {getStatusBadge(campaign.status)}
+                  </div>
+                ))}
               </div>
-              <h3 className="font-medium text-gray-900 dark:text-white mb-1">2. Import Contacts</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                Upload your Excel file with phone numbers
-              </p>
-              <Button size="sm" variant="outline" onClick={() => navigate('/import')}>
-                <Upload className="h-4 w-4" />
-                Import
-              </Button>
-            </div>
-
-            {/* Step 3 */}
-            <div className="flex flex-col items-center text-center p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-              <div className="rounded-full bg-yellow-100 p-3 dark:bg-yellow-900/30 mb-3">
-                <Send className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
-              </div>
-              <h3 className="font-medium text-gray-900 dark:text-white mb-1">3. Create Campaign</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                Write your message and start sending
-              </p>
-              <Button size="sm" variant="outline" onClick={() => navigate('/campaigns/new')}>
-                <Plus className="h-4 w-4" />
-                Create
-              </Button>
-            </div>
+            )}
           </div>
-        </CardContent>
-      </Card>
+        </Card>
+        
+        <Card className="p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Quick Actions</h2>
+          <div className="space-y-3">
+            <QuickAction 
+              title="Import Contacts" 
+              description="Upload an Excel file with phone numbers" 
+              icon={<Users size={20} className="text-blue-600 dark:text-blue-400" />}
+              onClick={() => navigate('/import')}
+            />
+            <QuickAction 
+              title="Connect WhatsApp" 
+              description="Scan QR code to link a new device" 
+              icon={<Activity size={20} className="text-primary-600 dark:text-primary-400" />}
+              onClick={() => navigate('/whatsapp')}
+            />
+            <QuickAction 
+              title="Create Campaign" 
+              description="Start a new message broadcast" 
+              icon={<Send size={20} className="text-green-600 dark:text-green-400" />}
+              onClick={() => navigate('/campaigns/new')}
+            />
+          </div>
+        </Card>
+      </div>
     </div>
+  );
+}
+
+function StatsCard({ title, value, icon, trend, trendUp }: { title: string, value: string, icon: React.ReactNode, trend: string, trendUp: boolean }) {
+  return (
+    <Card className="p-6 flex flex-col justify-between h-32">
+      <div className="flex justify-between items-start">
+        <div>
+          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</p>
+          <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{value}</h3>
+        </div>
+        <div className="p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          {icon}
+        </div>
+      </div>
+      <div className={`text-xs font-medium ${trendUp ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+        {trend}
+      </div>
+    </Card>
+  );
+}
+
+function QuickAction({ title, description, icon, onClick }: { title: string, description: string, icon: React.ReactNode, onClick: () => void }) {
+  return (
+    <button 
+      onClick={onClick}
+      className="w-full flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-xl transition-colors border border-transparent hover:border-gray-200 dark:hover:border-gray-700 text-left group"
+    >
+      <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg mr-4 group-hover:scale-110 transition-transform">
+        {icon}
+      </div>
+      <div>
+        <h4 className="text-sm font-medium text-gray-900 dark:text-white">{title}</h4>
+        <p className="text-xs text-gray-500">{description}</p>
+      </div>
+    </button>
   );
 }

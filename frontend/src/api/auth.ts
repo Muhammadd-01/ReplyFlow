@@ -3,7 +3,10 @@ import type { ApiResponse, User } from '@/types';
 
 interface AuthResponse {
   user: User;
-  accessToken: string;
+  tokens: {
+    accessToken: string;
+    refreshToken: string;
+  };
 }
 
 export const authApi = {
@@ -13,7 +16,7 @@ export const authApi = {
       email,
       password,
     });
-    return data.data!;
+    return { user: data.data!.user, accessToken: data.data!.tokens.accessToken };
   },
 
   login: async (email: string, password: string) => {
@@ -21,7 +24,7 @@ export const authApi = {
       email,
       password,
     });
-    return data.data!;
+    return { user: data.data!.user, accessToken: data.data!.tokens.accessToken };
   },
 
   logout: async () => {
@@ -29,8 +32,8 @@ export const authApi = {
   },
 
   getMe: async () => {
-    const { data } = await client.get<ApiResponse<User>>('/auth/me');
-    return data.data!;
+    const { data } = await client.get<ApiResponse<{ user: User }>>('/auth/me');
+    return data.data!.user;
   },
 
   refresh: async () => {

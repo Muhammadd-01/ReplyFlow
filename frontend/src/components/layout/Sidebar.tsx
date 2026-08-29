@@ -21,6 +21,7 @@ interface SidebarProps {
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/whatsapp', label: 'WhatsApp', icon: MessageSquare },
+  { to: '/chats', label: 'Chats', icon: MessageSquare },
   { to: '/contacts', label: 'Contacts', icon: Users },
   { to: '/campaigns', label: 'Campaigns', icon: Send },
   { to: '/inbox', label: 'Reply Inbox', icon: Inbox, badge: true },
@@ -41,7 +42,7 @@ export default function Sidebar({ isOpen, onClose, unreadCount = 0 }: SidebarPro
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-white border-r border-gray-200 dark:bg-gray-900 dark:border-gray-700',
+          'fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-white border-r border-gray-200 dark:bg-[#0f172a]/60 dark:backdrop-blur-xl dark:border-primary-500/20',
           'transition-transform duration-300 lg:translate-x-0 lg:static lg:z-auto',
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}

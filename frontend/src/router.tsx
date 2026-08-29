@@ -14,6 +14,7 @@ import InboxPage from '@/pages/InboxPage';
 import ConversationPage from '@/pages/ConversationPage';
 import ExportsPage from '@/pages/ExportsPage';
 import SettingsPage from '@/pages/SettingsPage';
+import { ChatsPage } from '@/pages/ChatsPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 
 export const router = createBrowserRouter([
@@ -41,6 +42,7 @@ export const router = createBrowserRouter([
       { path: '/inbox', element: <InboxPage /> },
       { path: '/conversations/:id', element: <ConversationPage /> },
       { path: '/exports', element: <ExportsPage /> },
+      { path: '/chats', element: <ChatsPage /> },
       { path: '/settings', element: <SettingsPage /> },
     ],
   },

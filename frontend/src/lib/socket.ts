@@ -16,6 +16,9 @@ interface ServerToClientEvents {
   'reply:received': (data: { campaignId: string; contactId: string; content: string; receivedAt: string }) => void;
   'reply:opt-out': (data: { contactId: string; phoneNumber: string }) => void;
   'export:ready': (data: { exportId: string; campaignId: string }) => void;
+  'whatsapp:new_message': (data: any) => void;
+  'whatsapp:contacts_synced': (data: any) => void;
+  'whatsapp:reply': (data: any) => void;
 }
 
 interface ClientToServerEvents {

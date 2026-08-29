@@ -1,5 +1,4 @@
 import { Request } from 'express';
-import { User } from '@prisma/client';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -9,7 +8,15 @@ export interface ApiResponse<T = any> {
 }
 
 export interface AuthRequest extends Request {
-  user?: Omit<User, 'passwordHash'>;
+  user?: {
+    id: string;
+    email: string;
+    name: string | null;
+    companyName: string | null;
+    role: string;
+    createdAt: Date;
+    updatedAt: Date;
+  };
 }
 
 export interface PaginationQuery {

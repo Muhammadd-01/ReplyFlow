@@ -7,6 +7,10 @@ import { logger } from '../lib/logger.js';
 export interface ServerToClientEvents {
   campaignUpdate: (data: any) => void;
   messageStatus: (data: any) => void;
+  'whatsapp:status': (data: any) => void;
+  'whatsapp:reply': (data: any) => void;
+  'whatsapp:contacts_synced': (data: any) => void;
+  'whatsapp:new_message': (data: any) => void;
 }
 
 export interface ClientToServerEvents {
