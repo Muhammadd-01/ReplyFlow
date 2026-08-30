@@ -34,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         connectSocket(token);
       } catch {
         localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
       } finally {
         setIsLoading(false);
       }
@@ -42,15 +43,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const { user: userData, accessToken } = await authApi.login(email, password);
+    const { user: userData, accessToken, refreshToken } = await authApi.login(email, password);
     localStorage.setItem('accessToken', accessToken);
+    localStorage.setItem('refreshToken', refreshToken);
     setUser(userData);
     connectSocket(accessToken);
   }, []);
 
   const register = useCallback(async (name: string, email: string, password: string) => {
-    const { user: userData, accessToken } = await authApi.register(name, email, password);
+    const { user: userData, accessToken, refreshToken } = await authApi.register(name, email, password);
     localStorage.setItem('accessToken', accessToken);
+    localStorage.setItem('refreshToken', refreshToken);
     setUser(userData);
     connectSocket(accessToken);
   }, []);
@@ -62,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Ignore logout errors
     }
     localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
     setUser(null);
     disconnectSocket();
   }, []);

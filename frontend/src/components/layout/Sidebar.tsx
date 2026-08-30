@@ -10,6 +10,9 @@ import {
   Settings,
   X,
   Zap,
+  UploadCloud,
+  PlayCircle,
+  FileOutput,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -21,11 +24,9 @@ interface SidebarProps {
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/whatsapp', label: 'WhatsApp', icon: MessageSquare },
-  { to: '/chats', label: 'Chats', icon: MessageSquare },
   { to: '/contacts', label: 'Contacts', icon: Users },
-  { to: '/campaigns', label: 'Campaigns', icon: Send },
-  { to: '/inbox', label: 'Reply Inbox', icon: Inbox, badge: true },
-  { to: '/exports', label: 'Exports', icon: Download },
+  { to: '/campaigns', label: 'Campaigns', icon: PlayCircle },
+  { to: '/quick-send', label: 'Quick Send', icon: UploadCloud },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -78,6 +79,7 @@ export default function Sidebar({ isOpen, onClose, unreadCount = 0 }: SidebarPro
               >
                 <item.icon className="h-5 w-5 flex-shrink-0" />
                 <span className="flex-1">{item.label}</span>
+                {/* @ts-ignore */}
                 {item.badge && unreadCount > 0 && (
                   <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-600 px-1.5 text-xs font-bold text-white">
                     {unreadCount > 99 ? '99+' : unreadCount}

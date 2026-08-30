@@ -16,7 +16,7 @@ export const authApi = {
       email,
       password,
     });
-    return { user: data.data!.user, accessToken: data.data!.tokens.accessToken };
+    return { user: data.data!.user, accessToken: data.data!.tokens.accessToken, refreshToken: data.data!.tokens.refreshToken };
   },
 
   login: async (email: string, password: string) => {
@@ -24,7 +24,7 @@ export const authApi = {
       email,
       password,
     });
-    return { user: data.data!.user, accessToken: data.data!.tokens.accessToken };
+    return { user: data.data!.user, accessToken: data.data!.tokens.accessToken, refreshToken: data.data!.tokens.refreshToken };
   },
 
   logout: async () => {

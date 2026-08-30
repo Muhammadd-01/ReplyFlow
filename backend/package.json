@@ -2,7 +2,7 @@
   "name": "replyflow-backend",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx watch --ignore \"uploads/**\" --ignore \"exports/**\" --ignore \"auth_sessions/**\" src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "db:push": "prisma db push",

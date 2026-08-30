@@ -38,7 +38,9 @@ client.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    const isAuthRoute = originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/register');
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRoute) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({
@@ -55,16 +57,28 @@ client.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const { data } = await axios.post('/api/auth/refresh', {}, { withCredentials: true });
-        const newToken = data.data.accessToken;
+        const refreshToken = localStorage.getItem('refreshToken');
+        if (!refreshToken) throw new Error('No refresh token available');
+        
+        const { data } = await axios.post('/api/auth/refresh', { refreshToken });
+        const newToken = data.data.tokens.accessToken;
+        const newRefreshToken = data.data.tokens.refreshToken;
+        
         localStorage.setItem('accessToken', newToken);
+        if (newRefreshToken) {
+          localStorage.setItem('refreshToken', newRefreshToken);
+        }
+        
         processQueue(null, newToken);
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return client(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
         localStorage.removeItem('accessToken');
-        window.location.href = '/login';
+        localStorage.removeItem('refreshToken');
+        if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+          window.location.href = '/login';
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

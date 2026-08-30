@@ -17,7 +17,8 @@ export interface Campaign {
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
-  whatsappSession?: WhatsAppSession;
+  whatsappSessionId?: any;
+  parentCampaignId?: string;
 }
 
 export interface CampaignsResponse {
@@ -34,6 +35,9 @@ export interface CreateCampaignPayload {
   whatsappSessionId: string;
   delayMin: number;
   delayMax: number;
+  file?: File;
+  contactIds?: string[];
+  parentCampaignId?: string;
 }
 
 export const campaignsApi = {
@@ -51,8 +55,25 @@ export const campaignsApi = {
   },
 
   createCampaign: async (data: CreateCampaignPayload): Promise<Campaign> => {
-    const response = await apiClient.post('/campaigns', data);
-    return response.data.data;
+    if (data.file) {
+      const formData = new FormData();
+      formData.append('name', data.name);
+      formData.append('messageTemplate', data.messageTemplate);
+      formData.append('whatsappSessionId', data.whatsappSessionId);
+      formData.append('delayMin', data.delayMin.toString());
+      formData.append('delayMax', data.delayMax.toString());
+      formData.append('file', data.file);
+      if (data.contactIds) formData.append('contactIds', JSON.stringify(data.contactIds));
+      if (data.parentCampaignId) formData.append('parentCampaignId', data.parentCampaignId);
+      
+      const res = await apiClient.post<{ status: string; data: Campaign }>('/campaigns', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      return res.data.data;
+    }
+
+    const res = await apiClient.post<{ status: string; data: Campaign }>('/campaigns', data);
+    return res.data.data;
   },
 
   startCampaign: async (id: string): Promise<{ message: string }> => {

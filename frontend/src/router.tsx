@@ -9,6 +9,7 @@ import ContactsPage from '@/pages/ContactsPage';
 import ImportPage from '@/pages/ImportPage';
 import CampaignsPage from '@/pages/CampaignsPage';
 import NewCampaignPage from '@/pages/NewCampaignPage';
+import QuickSendPage from '@/pages/QuickSendPage';
 import CampaignDetailPage from '@/pages/CampaignDetailPage';
 import InboxPage from '@/pages/InboxPage';
 import ConversationPage from '@/pages/ConversationPage';
@@ -38,6 +39,7 @@ export const router = createBrowserRouter([
       { path: '/import', element: <ImportPage /> },
       { path: '/campaigns', element: <CampaignsPage /> },
       { path: '/campaigns/new', element: <NewCampaignPage /> },
+      { path: '/quick-send', element: <QuickSendPage /> },
       { path: '/campaigns/:id', element: <CampaignDetailPage /> },
       { path: '/inbox', element: <InboxPage /> },
       { path: '/conversations/:id', element: <ConversationPage /> },

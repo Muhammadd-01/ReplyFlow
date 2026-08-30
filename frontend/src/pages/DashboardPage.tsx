@@ -40,28 +40,28 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatsCard 
           title="Total Contacts" 
-          value={isLoading ? '-' : data?.stats.totalContacts.toString() || '0'} 
+          value={isLoading || !data ? '-' : data.stats.totalContacts.toString()} 
           icon={<Users className="text-blue-600 dark:text-blue-400" size={24} />} 
           trend="+12% from last month"
           trendUp={true}
         />
         <StatsCard 
           title="Active Campaigns" 
-          value={isLoading ? '-' : data?.stats.activeCampaigns.toString() || '0'} 
+          value={isLoading || !data ? '-' : data.stats.activeCampaigns.toString()} 
           icon={<Activity className="text-primary-600 dark:text-primary-400" size={24} />} 
           trend="2 completed this week"
           trendUp={true}
         />
         <StatsCard 
           title="Messages Sent" 
-          value={isLoading ? '-' : data?.stats.totalMessagesSent.toString() || '0'} 
+          value={isLoading || !data ? '-' : data.stats.totalMessagesSent.toString()} 
           icon={<Send className="text-green-600 dark:text-green-400" size={24} />} 
           trend="+18% from last month"
           trendUp={true}
         />
         <StatsCard 
           title="Total Replies" 
-          value={isLoading ? '-' : data?.stats.totalReplies.toString() || '0'} 
+          value={isLoading || !data ? '-' : data.stats.totalReplies.toString()} 
           icon={<MessageSquare className="text-warning-600 dark:text-warning-400" size={24} />} 
           trend="+5% from last month"
           trendUp={true}
@@ -81,9 +81,9 @@ export default function DashboardPage() {
           </div>
           
           <div className="flex-1">
-            {isLoading ? (
+            {isLoading || !data ? (
               <div className="text-center py-8 text-gray-500">Loading campaigns...</div>
-            ) : data?.recentCampaigns.length === 0 ? (
+            ) : data.recentCampaigns.length === 0 ? (
               <div className="text-center py-12 flex flex-col items-center border border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
                 <Play className="text-gray-400 mb-3" size={32} />
                 <h3 className="text-gray-900 dark:text-white font-medium mb-1">No campaigns yet</h3>
@@ -97,7 +97,7 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                {data?.recentCampaigns.map((campaign) => (
+                {data.recentCampaigns.map((campaign) => (
                   <div key={campaign.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700/50">
                     <div>
                       <h3 className="font-medium text-gray-900 dark:text-white">{campaign.name}</h3>

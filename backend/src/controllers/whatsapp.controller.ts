@@ -9,6 +9,17 @@ export const getSessions = asyncHandler(async (req: AuthRequest, res: Response) 
   
   const sessions = await WhatsAppSession.find({ userId }).sort({ createdAt: -1 });
 
+  // Sync real memory state with DB
+  for (const s of sessions) {
+    if (s.status === 'CONNECTED' || s.status === 'CONNECTING') {
+      const activeStatus = whatsappService.getStatus(s._id.toString());
+      if (activeStatus === 'DISCONNECTED') {
+        s.status = 'DISCONNECTED';
+        await s.save();
+      }
+    }
+  }
+
   res.json({ status: 'success', data: sessions });
 });
 

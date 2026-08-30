@@ -16,7 +16,9 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/', getCampaigns);
-router.post('/', createCampaign);
+import { uploadExcelMiddleware } from '../middleware/upload.js';
+
+router.post('/', uploadExcelMiddleware, createCampaign);
 router.get('/:id', getCampaignById);
 router.put('/:id', updateCampaign);
 router.post('/:id/start', startCampaign);

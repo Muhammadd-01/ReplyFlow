@@ -2,6 +2,7 @@ import { BaileysProvider } from './providers/baileys.js';
 import WhatsAppSession from '../models/WhatsAppSession.js';
 import Contact from '../models/Contact.js';
 import CampaignContact from '../models/CampaignContact.js';
+import Campaign from '../models/Campaign.js';
 import Reply from '../models/Reply.js';
 import Chat from '../models/Chat.js';
 import ChatMessage from '../models/ChatMessage.js';
@@ -298,8 +299,6 @@ class WhatsAppService {
 
         if (msg.key.fromMe) continue;
 
-
-
         const campaignContact = await CampaignContact.findOne({ contactId: contact._id })
           .sort({ createdAt: -1 });
 
@@ -311,10 +310,21 @@ class WhatsAppService {
           content,
         });
 
-        await CampaignContact.findByIdAndUpdate(campaignContact._id, {
-          status: 'REPLIED',
-          repliedAt: new Date()
-        });
+        if (campaignContact.status !== 'REPLIED') {
+          await CampaignContact.findByIdAndUpdate(campaignContact._id, {
+            status: 'REPLIED',
+            repliedAt: new Date(),
+            replyMessage: content
+          });
+
+          await Campaign.findByIdAndUpdate(campaignContact.campaignId, {
+            $inc: { repliedCount: 1 }
+          });
+        } else {
+          await CampaignContact.findByIdAndUpdate(campaignContact._id, {
+            $set: { replyMessage: campaignContact.replyMessage ? campaignContact.replyMessage + ' | ' + content : content }
+          });
+        }
         
         io.to(`user:${session.userId}`).emit('whatsapp:reply', { 
           contactId: contact._id, 

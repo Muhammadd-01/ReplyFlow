@@ -50,6 +50,7 @@ class ExportService {
       { header: 'Phone Number', key: 'phone', width: 20 },
       { header: 'Status', key: 'status', width: 15 },
       { header: 'Sent At', key: 'sentAt', width: 25 },
+      { header: 'Reply Message', key: 'reply', width: 40 },
       { header: 'Failure Reason', key: 'failure', width: 30 },
     ];
 
@@ -62,6 +63,7 @@ class ExportService {
         phone: cc.contactId?.phoneNumber,
         status: cc.status,
         sentAt: cc.sentAt ? cc.sentAt.toISOString() : '',
+        reply: cc.replyMessage || '',
         failure: cc.failureReason || ''
       });
 

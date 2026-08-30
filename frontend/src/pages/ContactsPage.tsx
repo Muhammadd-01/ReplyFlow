@@ -10,6 +10,7 @@ import Pagination from '@/components/ui/Pagination';
 import EmptyState from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { contactsApi } from '@/api/contacts';
+import { campaignsApi } from '@/api/campaigns';
 import { socket } from '@/lib/socket';
 
 export default function ContactsPage() {
@@ -17,14 +18,78 @@ export default function ContactsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isQuickCampaignModalOpen, setIsQuickCampaignModalOpen] = useState(false);
+  const [selectedCampaignId, setSelectedCampaignId] = useState('');
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newEmail, setNewEmail] = useState('');
+  const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
 
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['contacts', page, search],
     queryFn: () => contactsApi.getContacts({ page, limit: 10, search }),
   });
+
+  const { data: campaignsData, isLoading: isLoadingCampaigns } = useQuery({
+    queryKey: ['campaigns'],
+    queryFn: () => campaignsApi.getCampaigns(1, 100),
+  });
+
+  const createAndStartMutation = useMutation({
+    mutationFn: async () => {
+      const templateCampaign = campaignsData?.items.find(c => c.id === selectedCampaignId);
+      if (!templateCampaign) throw new Error('Campaign not found');
+
+      const sessionId = templateCampaign.whatsappSessionId?._id || templateCampaign.whatsappSessionId?.id || templateCampaign.whatsappSessionId;
+      if (!sessionId) throw new Error('Selected campaign has no WhatsApp session configured');
+
+      const newCampaign = await campaignsApi.createCampaign({
+        name: `${templateCampaign.name} (Custom Send)`,
+        messageTemplate: templateCampaign.messageTemplate,
+        whatsappSessionId: sessionId,
+        delayMin: templateCampaign.delayMin,
+        delayMax: templateCampaign.delayMax,
+        contactIds: Array.from(selectedContacts),
+        parentCampaignId: templateCampaign.id,
+      });
+
+      await campaignsApi.startCampaign(newCampaign.id);
+      return newCampaign;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      toast.success('Campaign started successfully!');
+      setIsQuickCampaignModalOpen(false);
+      setSelectedContacts(new Set());
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || err.message || 'Failed to start campaign');
+    }
+  });
+
+  const handleSendQuickCampaign = () => {
+    if (!selectedCampaignId) return;
+    createAndStartMutation.mutate();
+  };
+
+  const toggleSelection = (id: string) => {
+    setSelectedContacts(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (data?.items) {
+      if (selectedContacts.size === data.items.length) {
+        setSelectedContacts(new Set());
+      } else {
+        setSelectedContacts(new Set(data.items.map((c: any) => c.id)));
+      }
+    }
+  };
 
   // Listen for real-time contact sync events from backend
   useEffect(() => {
@@ -122,7 +187,7 @@ export default function ContactsPage() {
       </div>
 
       <Card>
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row gap-4 justify-between">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row gap-4 justify-between items-center">
           <div className="w-full sm:w-96 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input 
@@ -133,8 +198,15 @@ export default function ContactsPage() {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500"
             />
           </div>
-          <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
-            Total contacts: <span className="font-semibold text-gray-900 dark:text-white">{data?.total || 0}</span>
+          <div className="flex items-center gap-4">
+            {selectedContacts.size > 0 && (
+              <Button size="sm" onClick={() => setIsQuickCampaignModalOpen(true)} className="bg-pink-600 hover:bg-pink-700">
+                Send Campaign ({selectedContacts.size})
+              </Button>
+            )}
+            <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
+              Total contacts: <span className="font-semibold text-gray-900 dark:text-white">{data?.total || 0}</span>
+            </div>
           </div>
         </div>
 
@@ -142,9 +214,17 @@ export default function ContactsPage() {
           <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
             <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700/50 dark:text-gray-300">
               <tr>
+                <th className="px-6 py-4 w-12">
+                  <input 
+                    type="checkbox" 
+                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    checked={Boolean(data?.items?.length) && selectedContacts.size === data!.items.length}
+                    onChange={toggleAll}
+                  />
+                </th>
                 <th className="px-6 py-4">Name / Student</th>
                 <th className="px-6 py-4">Phone Number</th>
-                <th className="px-6 py-4">Source</th>
+                <th className="px-6 py-4">Campaigns History</th>
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4">Added</th>
               </tr>
@@ -152,13 +232,13 @@ export default function ContactsPage() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                     Loading contacts...
                   </td>
                 </tr>
               ) : data?.items.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12">
+                  <td colSpan={6} className="px-6 py-12">
                     <EmptyState 
                       icon={Users}
                       title="No contacts found"
@@ -167,8 +247,16 @@ export default function ContactsPage() {
                   </td>
                 </tr>
               ) : (
-                data?.items.map((contact) => (
+                data?.items.map((contact: any) => (
                   <tr key={contact.id} className="bg-white border-b dark:bg-gray-800/80 dark:border-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        checked={selectedContacts.has(contact.id)}
+                        onChange={() => toggleSelection(contact.id)}
+                      />
+                    </td>
                     <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
                       {contact.name || 'Unnamed Contact'}
                       {contact.email && <div className="text-xs text-gray-500 dark:text-gray-400 font-normal">{contact.email}</div>}
@@ -177,7 +265,26 @@ export default function ContactsPage() {
                       {contact.phoneNumber}
                     </td>
                     <td className="px-6 py-4">
-                      {getSourceBadge(contact.source)}
+                      {contact.campaigns && contact.campaigns.length > 0 ? (
+                        <select 
+                          value="default" 
+                          onChange={(e) => {
+                            if (e.target.value !== 'default') {
+                              window.location.href = `/campaigns/${e.target.value}`;
+                            }
+                          }}
+                          className="text-xs bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded p-1 w-36 focus:ring-primary-500 focus:border-primary-500"
+                        >
+                          <option value="default" disabled>{contact.campaigns.length} Campaigns</option>
+                          {contact.campaigns.map((c: any, i: number) => (
+                            <option key={i} value={c.id}>
+                              {c.name} - {c.status}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-gray-400">None</span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       {contact.isOptedOut ? (
@@ -249,6 +356,49 @@ export default function ContactsPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Quick Campaign Modal */}
+      <Modal
+        isOpen={isQuickCampaignModalOpen}
+        onClose={() => setIsQuickCampaignModalOpen(false)}
+        title={`Send Campaign to ${selectedContacts.size} Contacts`}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Select Campaign Template
+            </label>
+            {isLoadingCampaigns ? (
+              <p className="text-sm text-gray-500">Loading campaigns...</p>
+            ) : (
+              <select 
+                className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                value={selectedCampaignId}
+                onChange={(e) => setSelectedCampaignId(e.target.value)}
+              >
+                <option value="">-- Choose a Campaign --</option>
+                {campaignsData?.items?.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            )}
+            <p className="mt-1 text-xs text-gray-500">This will clone the selected campaign and send its message template from its WhatsApp session to the {selectedContacts.size} selected contacts.</p>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
+            <Button type="button" variant="outline" onClick={() => setIsQuickCampaignModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSendQuickCampaign} 
+              isLoading={createAndStartMutation.isPending}
+              disabled={!selectedCampaignId}
+            >
+              Start Sending
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

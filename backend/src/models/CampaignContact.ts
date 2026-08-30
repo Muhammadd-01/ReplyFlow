@@ -9,6 +9,7 @@ export interface ICampaignContact extends Document {
   sentAt?: Date;
   deliveredAt?: Date;
   repliedAt?: Date;
+  replyMessage?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -22,6 +23,7 @@ const CampaignContactSchema: Schema = new Schema({
   sentAt: { type: Date },
   deliveredAt: { type: Date },
   repliedAt: { type: Date },
+  replyMessage: { type: String },
 }, { timestamps: true });
 
 CampaignContactSchema.index({ campaignId: 1, contactId: 1 }, { unique: true });

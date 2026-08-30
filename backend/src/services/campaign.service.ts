@@ -82,6 +82,11 @@ class CampaignService {
 
         const contact: any = cc.contactId;
 
+        if (!contact) {
+          await this.updateContactStatus(cc.id, campaignId, campaign.userId.toString(), 'FAILED', 'Contact not found');
+          continue;
+        }
+
         // Skip opted out
         if (contact.isOptedOut) {
           await this.updateContactStatus(cc.id, campaignId, campaign.userId.toString(), 'SKIPPED');
@@ -137,9 +142,26 @@ class CampaignService {
   }
 
   private personalizeMessage(template: string, contact: any): string {
-    return template
-      .replace(/{name}/g, contact.name || 'Friend')
-      .replace(/{phone}/g, contact.phoneNumber);
+    const localPhone = contact.phoneNumber ? contact.phoneNumber.toString().trim() : '';
+    const formattedPhone = localPhone.startsWith('92') ? '0' + localPhone.substring(2) :
+                           localPhone.startsWith('+92') ? '0' + localPhone.substring(3) :
+                           localPhone.length === 10 && !localPhone.startsWith('0') ? '0' + localPhone :
+                           localPhone;
+
+    const idVal = contact.attributes?.get ? contact.attributes.get('id') : contact.attributes?.id;
+    const dateVal = contact.attributes?.get ? contact.attributes.get('date') : contact.attributes?.date;
+
+    let finalMsg = template
+      .replace(/\{name\}/g, contact.name || 'Friend')
+      .replace(/\{phone\}/g, formattedPhone)
+      .replace(/\{id\}/g, idVal || '')
+      .replace(/\{date\}/g, dateVal || '');
+
+    if (idVal && !template.includes('{id}')) {
+      finalMsg += `\n\nID: ${idVal}`;
+    }
+
+    return finalMsg;
   }
 
   private async updateContactStatus(id: string, campaignId: string, userId: string, status: any, message?: string) {

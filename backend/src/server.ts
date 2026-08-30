@@ -25,6 +25,8 @@ import chatRoutes from './routes/chat.routes.js';
 import inboxRoutes from './routes/inbox.routes.js';
 import exportRoutes from './routes/export.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
+import WhatsAppSession from './models/WhatsAppSession.js';
+import { whatsappService } from './whatsapp/service.js';
 import { initializeSocket } from './socket/index.js';
 
 const app = express();
@@ -67,6 +69,19 @@ const PORT = env.PORT || 3001;
 
 httpServer.listen(PORT, () => {
   logger.info(`Server running on port ${PORT} in ${env.NODE_ENV} mode`);
+  
+  // Auto-restore connected WhatsApp sessions
+  setTimeout(async () => {
+    try {
+      const sessions = await WhatsAppSession.find({ status: { $in: ['CONNECTED', 'CONNECTING'] } });
+      for (const s of sessions) {
+        logger.info(`Re-initializing WhatsApp session ${s._id}...`);
+        whatsappService.startSession(s._id.toString(), s.userId.toString()).catch(console.error);
+      }
+    } catch (err) {
+      logger.error('Failed to auto-restore sessions:', err);
+    }
+  }, 2000); // slight delay to ensure DB is fully ready
 });
 
 // Graceful shutdown

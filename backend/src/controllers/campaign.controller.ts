@@ -6,6 +6,7 @@ import Contact from '../models/Contact.js';
 import CampaignContact from '../models/CampaignContact.js';
 import WhatsAppSession from '../models/WhatsAppSession.js';
 import { createCampaignSchema, campaignQuerySchema } from '../validators/campaign.validator.js';
+import { whatsappService } from '../whatsapp/service.js';
 import { campaignService } from '../services/campaign.service.js';
 
 export const getCampaigns = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -52,13 +53,113 @@ export const getCampaignById = asyncHandler(async (req: AuthRequest, res: Respon
   res.json({ status: 'success', data: { ...campaign.toObject(), campaignContacts } });
 });
 
-export const createCampaign = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const data = createCampaignSchema.parse(req.body);
-  const userId = req.user!.id;
+import ExcelJS from 'exceljs';
+import { normalizePhoneNumber } from '../utils/phone.utils.js';
 
-  const contacts = await Contact.find({ userId, isOptedOut: false }).select('_id');
-  if (contacts.length === 0) {
-    throw new AppError(400, 'No active contacts available for campaign');
+export const createCampaign = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { contactIds, ...data } = createCampaignSchema.parse(req.body);
+  const userId = req.user!.id;
+  
+  let targetContactIds: any[] = [];
+
+  if (req.file) {
+    const workbook = new ExcelJS.Workbook();
+    const ext = req.file.originalname.split('.').pop()?.toLowerCase();
+    if (ext === 'csv') {
+      await workbook.csv.readFile(req.file.path);
+    } else {
+      await workbook.xlsx.readFile(req.file.path);
+    }
+    
+    if (workbook.worksheets.length === 0) {
+      throw new AppError(400, 'Uploaded file contains no worksheets');
+    }
+    
+    const sheet = workbook.worksheets[0];
+    const firstRow = sheet.getRow(1);
+    const rawValues = Array.isArray(firstRow.values) ? firstRow.values : [];
+    const headers = rawValues.map(h => (h ? h.toString().trim().toLowerCase() : ''));
+    
+    let phoneIdx = -1;
+    let nameIdx = -1;
+    let idIdx = -1;
+    let dateIdx = -1;
+
+    for (let i = 0; i < headers.length; i++) {
+      const h = headers[i];
+      if (!h) continue;
+      
+      if (phoneIdx === -1 && (h.includes('phone') || h.includes('mobile') || h.includes('whatsapp') || h.includes('contact') || h.includes('number'))) {
+        phoneIdx = i;
+      }
+      if (nameIdx === -1 && (h.includes('name') || h.includes('first name') || h.includes('full name'))) {
+        nameIdx = i;
+      }
+      if (idIdx === -1 && (h === 'id' || h.includes('identifier') || h.includes('patient id') || h.includes('student id') || h.includes('roll no'))) {
+        idIdx = i;
+      }
+      if (dateIdx === -1 && (h.includes('date') || h.includes('time') || h.includes('appointment'))) {
+        dateIdx = i;
+      }
+    }
+    
+    if (phoneIdx === -1) {
+      phoneIdx = 1;
+    }
+    
+    for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber++) {
+      const row = sheet.getRow(rowNumber);
+      const values: any[] = Array.isArray(row.values) ? row.values : [];
+      const rawPhone = values[phoneIdx] ? values[phoneIdx].toString() : '';
+      const name = nameIdx !== -1 && values[nameIdx] ? values[nameIdx].toString() : undefined;
+      const idVal = idIdx !== -1 && values[idIdx] ? values[idIdx].toString() : undefined;
+      let dateVal: any = dateIdx !== -1 && values[dateIdx] ? values[dateIdx] : undefined;
+      
+      if (dateVal instanceof Date) {
+        dateVal = dateVal.toLocaleDateString();
+      } else if (dateVal) {
+        dateVal = dateVal.toString();
+      }
+
+      const normalizedPhone = normalizePhoneNumber(rawPhone, 'PK');
+      if (!normalizedPhone) continue;
+      
+      let contact = await Contact.findOne({ userId, normalizedPhoneNumber: normalizedPhone });
+      const attributes = { 
+        ...(contact?.attributes || {}),
+        ...(idVal && { id: idVal }),
+        ...(dateVal && { date: dateVal })
+      };
+
+      if (!contact) {
+        contact = await Contact.create({
+          userId,
+          phoneNumber: rawPhone,
+          normalizedPhoneNumber: normalizedPhone,
+          name,
+          attributes,
+          source: 'EXCEL_IMPORT',
+        });
+      } else {
+        // Update name and attributes if it already exists
+        if (name) contact.name = name;
+        contact.attributes = attributes;
+        await contact.save();
+      }
+      targetContactIds.push(contact._id);
+    }
+  } else if (contactIds && Array.isArray(contactIds) && contactIds.length > 0) {
+    const contacts = await Contact.find({ _id: { $in: contactIds }, userId });
+    targetContactIds = contacts.map(c => c._id);
+  } else {
+    const contacts = await Contact.find({ userId, isOptedOut: false });
+    targetContactIds = contacts.map(c => c._id);
+  }
+
+  const uniqueTargetContactIds = [...new Set(targetContactIds.map(id => id.toString()))];
+
+  if (uniqueTargetContactIds.length === 0) {
+    throw new AppError(400, 'No valid contacts found for campaign');
   }
 
   const campaign = await Campaign.create({
@@ -68,13 +169,13 @@ export const createCampaign = asyncHandler(async (req: AuthRequest, res: Respons
     whatsappSessionId: data.whatsappSessionId,
     delayMin: data.delayMin,
     delayMax: data.delayMax,
-    totalContacts: contacts.length,
-    pendingCount: contacts.length,
+    totalContacts: uniqueTargetContactIds.length,
+    pendingCount: uniqueTargetContactIds.length,
   });
 
-  const campaignContactsData = contacts.map((c: any) => ({
+  const campaignContactsData = uniqueTargetContactIds.map(contactId => ({
     campaignId: campaign._id,
-    contactId: c._id,
+    contactId,
     status: 'PENDING'
   }));
 
@@ -111,20 +212,43 @@ export const startCampaign = asyncHandler(async (req: AuthRequest, res: Response
   if (!campaign) throw new NotFoundError('Campaign not found');
   
   let session: any = campaign.whatsappSessionId;
+  let activeSessionId = session ? session._id.toString() : null;
+
+  if (activeSessionId) {
+    const realStatus = whatsappService.getStatus(activeSessionId);
+    if (realStatus !== 'CONNECTED') {
+      session.status = 'DISCONNECTED';
+      await session.save();
+      session = null;
+    }
+  }
+
   if (!session || session.status !== 'CONNECTED') {
-    const activeSession = await WhatsAppSession.findOne({ userId, status: 'CONNECTED' });
-    if (activeSession) {
-      campaign.whatsappSessionId = activeSession._id as any;
+    const activeSessions = await WhatsAppSession.find({ userId, status: 'CONNECTED' });
+    let validSession = null;
+    
+    for (const s of activeSessions) {
+      if (whatsappService.getStatus(s._id.toString()) === 'CONNECTED') {
+        validSession = s;
+        break;
+      } else {
+        s.status = 'DISCONNECTED';
+        await s.save();
+      }
+    }
+
+    if (validSession) {
+      campaign.whatsappSessionId = validSession._id as any;
       await campaign.save();
-      session = activeSession;
+      session = validSession;
     } else {
-      throw new AppError(400, 'No connected WhatsApp device found. Please connect your WhatsApp device first.');
+      throw new AppError(400, 'No connected WhatsApp device found in memory. Please go to the WhatsApp Devices tab and click "Connect" to instantly restore your session.');
     }
   }
 
   // If campaign has 0 contacts or is being restarted
   const existingContactsCount = await CampaignContact.countDocuments({ campaignId: id });
-  if (existingContactsCount === 0 || campaign.status === 'COMPLETED' || campaign.status === 'STOPPED') {
+  if (existingContactsCount === 0) {
     const contacts = await Contact.find({ userId, isOptedOut: false }).select('_id');
     if (contacts.length === 0) {
       throw new AppError(400, 'No active contacts found. Please import or sync contacts first.');
@@ -143,8 +267,18 @@ export const startCampaign = asyncHandler(async (req: AuthRequest, res: Response
     campaign.sentCount = 0;
     campaign.failedCount = 0;
     campaign.repliedCount = 0;
-    await campaign.save();
+  } else if (campaign.status === 'COMPLETED' || campaign.status === 'STOPPED' || campaign.status === 'FAILED') {
+    // Restarting a campaign with existing contacts
+    await CampaignContact.updateMany({ campaignId: id }, { status: 'PENDING' });
+    
+    campaign.pendingCount = campaign.totalContacts;
+    campaign.sentCount = 0;
+    campaign.failedCount = 0;
+    campaign.repliedCount = 0;
   }
+
+  campaign.status = 'RUNNING';
+  await campaign.save();
 
   campaignService.startCampaign(id);
   

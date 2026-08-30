@@ -25,9 +25,20 @@ export const getContacts = asyncHandler(async (req: AuthRequest, res: Response) 
   }
 
   const [items, total] = await Promise.all([
-    Contact.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+    Contact.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
     Contact.countDocuments(filter),
   ]);
+
+  const { default: CampaignContact } = await import('../models/CampaignContact.js');
+  const contactIds = items.map(i => i._id);
+  const campaignContacts = await CampaignContact.find({ contactId: { $in: contactIds } }).populate('campaignId', 'name').lean();
+
+  items.forEach((item: any) => {
+    item.id = item._id.toString();
+    item.campaigns = campaignContacts
+      .filter((cc: any) => cc.contactId.toString() === item._id.toString())
+      .map((cc: any) => ({ name: cc.campaignId?.name || 'Deleted Campaign', status: cc.status, id: cc.campaignId?._id }));
+  });
 
   res.json({
     status: 'success',

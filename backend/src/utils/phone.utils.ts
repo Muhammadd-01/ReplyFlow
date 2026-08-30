@@ -25,3 +25,28 @@ export const normalizePhoneNumber = (phone: string, defaultCountry: string = 'PK
 export const isValidPhoneNumber = (phone: string, defaultCountry: string = 'PK'): boolean => {
   return normalizePhoneNumber(phone, defaultCountry) !== null;
 };
+
+export const toLocalFormat = (phone: string, defaultCountry: string = 'PK'): string => {
+  try {
+    const phoneStr = phone.toString().trim();
+    if (!phoneStr) return phone;
+    
+    let phoneNumber;
+    if (phoneStr.startsWith('+')) {
+      phoneNumber = parsePhoneNumberWithError(phoneStr);
+    } else {
+      phoneNumber = parsePhoneNumberWithError(phoneStr, defaultCountry as CountryCode);
+    }
+
+    if (phoneNumber.isValid()) {
+      // For Pakistan, National format is like "0300 1234567". We remove spaces to make it "03001234567"
+      if (phoneNumber.country === 'PK') {
+        return phoneNumber.formatNational().replace(/\s/g, '');
+      }
+      return phoneNumber.formatNational();
+    }
+    return phone;
+  } catch (error) {
+    return phone;
+  }
+};

@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
+import FileUploader from '@/components/ui/FileUploader';
 import { campaignsApi } from '@/api/campaigns';
 import { whatsappApi } from '@/api/whatsapp';
 
@@ -19,6 +20,7 @@ export default function NewCampaignPage() {
   const [template, setTemplate] = useState('Hi {name}, ');
   const [delayMin, setDelayMin] = useState(3);
   const [delayMax, setDelayMax] = useState(8);
+  const [file, setFile] = useState<File | null>(null);
 
   const { data: sessions = [] } = useQuery({
     queryKey: ['whatsapp-sessions'],
@@ -33,7 +35,8 @@ export default function NewCampaignPage() {
       messageTemplate: template,
       whatsappSessionId: sessionId,
       delayMin,
-      delayMax
+      delayMax,
+      file: file || undefined,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
@@ -98,6 +101,22 @@ export default function NewCampaignPage() {
           )}
 
           <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Recipients List (Excel/CSV)
+            </label>
+            <FileUploader 
+              onFileSelect={setFile} 
+              accept=".xlsx,.xls,.csv" 
+              maxSizeMB={10} 
+            />
+            {!file && (
+              <p className="text-sm text-gray-500 mt-2">
+                If no file is provided, this campaign will be sent to ALL active contacts in your database.
+              </p>
+            )}
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Message Template
             </label>
@@ -108,7 +127,7 @@ export default function NewCampaignPage() {
               required
             />
             <p className="text-xs text-gray-500 mt-2">
-              Available variables: <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{name}"}</code>, <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{phone}"}</code>
+              Available variables: <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{name}"}</code>, <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{phone}"}</code>, <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{id}"}</code>, <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{date}"}</code>
             </p>
           </div>
 

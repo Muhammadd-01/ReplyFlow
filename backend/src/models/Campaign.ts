@@ -23,6 +23,7 @@ export interface ICampaign extends Document {
 const CampaignSchema: Schema = new Schema({
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   whatsappSessionId: { type: Schema.Types.ObjectId, ref: 'WhatsAppSession', required: true },
+  parentCampaignId: { type: Schema.Types.ObjectId, ref: 'Campaign' },
   name: { type: String, required: true },
   messageTemplate: { type: String, required: true },
   status: { type: String, default: 'DRAFT' },

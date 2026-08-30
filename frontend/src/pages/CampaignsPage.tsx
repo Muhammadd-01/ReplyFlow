@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Play, Pause, Square, Edit3, Trash2, RotateCcw, Plus, Eye, EyeOff, MessageSquare } from 'lucide-react';
 import { campaignsApi } from '../api/campaigns';
+import { socket } from '../lib/socket';
+import { toast } from 'sonner';
 import { Card } from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -14,6 +16,7 @@ import type React from 'react';
 export function CampaignsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<'templates' | 'history'>('templates');
   const [expandedPreviewId, setExpandedPreviewId] = useState<string | null>(null);
   
   // Edit Modal State
@@ -26,24 +29,43 @@ export function CampaignsPage() {
     queryFn: () => campaignsApi.getCampaigns(1, 100),
   });
 
+  useEffect(() => {
+    const handleUpdate = () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+    };
+    socket.on('campaignUpdate' as any, handleUpdate);
+    return () => {
+      socket.off('campaignUpdate' as any, handleUpdate);
+    };
+  }, [queryClient]);
+
+  const campaignsList = data?.items || [];
+  const templates = campaignsList.filter(c => !c.parentCampaignId && !c.name.includes('(Custom Send)') && !c.name.includes('(Quick Send)'));
+  const history = campaignsList.filter(c => !!c.parentCampaignId || c.name.includes('(Custom Send)') || c.name.includes('(Quick Send)'));
+  const displayedCampaigns = activeTab === 'templates' ? templates : history;
+
   const startMutation = useMutation({
     mutationFn: campaignsApi.startCampaign,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['campaigns'] }),
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to start campaign'),
   });
 
   const pauseMutation = useMutation({
     mutationFn: campaignsApi.pauseCampaign,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['campaigns'] }),
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to pause campaign'),
   });
 
   const stopMutation = useMutation({
     mutationFn: campaignsApi.stopCampaign,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['campaigns'] }),
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to stop campaign'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: campaignsApi.deleteCampaign,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['campaigns'] }),
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to delete campaign'),
   });
 
   const updateMutation = useMutation({
@@ -91,34 +113,63 @@ export function CampaignsPage() {
           <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Campaigns</h1>
           <p className="text-slate-500 dark:text-slate-400">Manage, preview, edit and run your WhatsApp messaging campaigns.</p>
         </div>
-        <Button onClick={() => navigate('/dashboard/campaigns/new')} leftIcon={<Plus size={18} />}>
+        <Button onClick={() => navigate('/campaigns/new')} leftIcon={<Plus size={18} />}>
           New Campaign
         </Button>
       </div>
 
+      <div className="flex space-x-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-full max-w-sm">
+        <button
+          onClick={() => setActiveTab('templates')}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+            activeTab === 'templates' 
+              ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow' 
+              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+          }`}
+        >
+          Templates ({templates.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+            activeTab === 'history' 
+              ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow' 
+              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+          }`}
+        >
+          Sent History ({history.length})
+        </button>
+      </div>
+
       {isLoading ? (
         <div className="text-center py-12 text-slate-500">Loading campaigns...</div>
-      ) : !data?.items || data.items.length === 0 ? (
-        <Card className="p-12">
-          <EmptyState
-            icon={Play}
-            title="No campaigns yet"
-            description="Create your first campaign to start sending messages to your contacts."
-            actionLabel="Create Campaign"
-            onAction={() => navigate('/dashboard/campaigns/new')}
-          />
-        </Card>
+      ) : displayedCampaigns.length === 0 ? (
+        <EmptyState 
+          icon={Play}
+          title={activeTab === 'templates' ? 'No templates found' : 'No campaign history'}
+          description={activeTab === 'templates' ? "Create a new campaign template to get started." : "Sent campaigns will appear here."}
+          actionLabel="Create Campaign"
+          onAction={() => navigate('/campaigns/new')}
+        />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {data.items.map((campaign: any) => {
+        <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6">
+          {displayedCampaigns.map((campaign: any) => {
             const isExpanded = expandedPreviewId === campaign.id;
+            const progress = campaign.totalContacts > 0 
+              ? Math.round((campaign.sentCount / campaign.totalContacts) * 100) 
+              : 0;
 
             return (
               <Card key={campaign.id} className="flex flex-col overflow-hidden transition-all duration-300 hover:border-cyan-500/60 shadow-[0_4px_20px_rgba(0,0,0,0.2)] dark:shadow-[0_0_15px_rgba(6,182,212,0.15)] group relative bg-slate-900/40 backdrop-blur-md">
                 <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
                 <div className="p-6 flex-1 relative z-10">
                   <div className="flex justify-between items-start mb-3">
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 line-clamp-1">{campaign.name}</h3>
+                    <h3 
+                      className="text-lg font-bold text-slate-800 dark:text-slate-100 line-clamp-1 hover:text-cyan-500 cursor-pointer transition-colors"
+                      onClick={() => navigate(`/campaigns/${campaign.id}`)}
+                    >
+                      {campaign.name}
+                    </h3>
                     {getStatusBadge(campaign.status)}
                   </div>
                   
@@ -183,6 +234,15 @@ export function CampaignsPage() {
                       title={isExpanded ? "Hide Preview" : "Preview Message Below"}
                     >
                       {isExpanded ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+
+                    {/* View Details Button */}
+                    <button 
+                      onClick={() => navigate(`/campaigns/${campaign.id}`)}
+                      className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors"
+                      title="View Details & Recipients"
+                    >
+                      <Eye size={17} />
                     </button>
 
                     {/* Edit Button */}
@@ -275,7 +335,7 @@ export function CampaignsPage() {
                 placeholder="Dear {{name}}, this is a message from SRO office..."
               />
               <p className="text-xs text-slate-400 mt-1">
-                You can use dynamic placeholders like <code className="text-cyan-500">{'{{name}}'}</code>, <code className="text-cyan-500">{'{{phoneNumber}}'}</code>, etc.
+                You can use dynamic placeholders like <code className="text-cyan-500">{'{name}'}</code>, <code className="text-cyan-500">{'{phone}'}</code>, <code className="text-cyan-500">{'{id}'}</code>, <code className="text-cyan-500">{'{date}'}</code>.
               </p>
             </div>
 
