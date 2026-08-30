@@ -34,5 +34,10 @@ export const whatsappApi = {
   disconnectSession: async (id: string): Promise<{ message: string }> => {
     const response = await apiClient.post(`/whatsapp/sessions/${id}/disconnect`);
     return response.data;
+  },
+
+  deleteSession: async (id: string) => {
+    const response = await apiClient.delete(`/whatsapp/sessions/${id}`);
+    return response.data;
   }
 };

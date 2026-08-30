@@ -246,41 +246,68 @@ export const startCampaign = asyncHandler(async (req: AuthRequest, res: Response
     }
   }
 
-  // If campaign has 0 contacts or is being restarted
-  const existingContactsCount = await CampaignContact.countDocuments({ campaignId: id });
-  if (existingContactsCount === 0) {
-    const contacts = await Contact.find({ userId, isOptedOut: false }).select('_id');
-    if (contacts.length === 0) {
-      throw new AppError(400, 'No active contacts found. Please import or sync contacts first.');
-    }
-    
-    await CampaignContact.deleteMany({ campaignId: id });
-    const campaignContactsData = contacts.map((c: any) => ({
-      campaignId: campaign._id,
-      contactId: c._id,
-      status: 'PENDING'
-    }));
-    await CampaignContact.insertMany(campaignContactsData);
+  let campaignToStart = campaign;
 
-    campaign.totalContacts = contacts.length;
-    campaign.pendingCount = contacts.length;
-    campaign.sentCount = 0;
-    campaign.failedCount = 0;
-    campaign.repliedCount = 0;
-  } else if (campaign.status === 'COMPLETED' || campaign.status === 'STOPPED' || campaign.status === 'FAILED') {
-    // Restarting a campaign with existing contacts
-    await CampaignContact.updateMany({ campaignId: id }, { status: 'PENDING' });
+  // If it's a template (no parent), create a child execution record
+  if (!campaign.parentCampaignId) {
+    const sessionToUse = session._id || session;
     
-    campaign.pendingCount = campaign.totalContacts;
-    campaign.sentCount = 0;
-    campaign.failedCount = 0;
-    campaign.repliedCount = 0;
+    campaignToStart = await Campaign.create({
+      userId,
+      name: `${campaign.name} (Execution)`,
+      messageTemplate: campaign.messageTemplate,
+      whatsappSessionId: sessionToUse,
+      delayMin: campaign.delayMin,
+      delayMax: campaign.delayMax,
+      totalContacts: campaign.totalContacts,
+      pendingCount: campaign.totalContacts,
+      sentCount: 0,
+      failedCount: 0,
+      repliedCount: 0,
+      status: 'DRAFT',
+      parentCampaignId: campaign._id
+    });
+
+    const existingContacts = await CampaignContact.find({ campaignId: campaign._id });
+    
+    // If the template has NO contacts, we fallback to all active contacts like before
+    if (existingContacts.length === 0) {
+      const contacts = await Contact.find({ userId, isOptedOut: false }).select('_id');
+      if (contacts.length === 0) {
+        throw new AppError(400, 'No active contacts found. Please import or sync contacts first.');
+      }
+      campaignToStart.totalContacts = contacts.length;
+      campaignToStart.pendingCount = contacts.length;
+      
+      const newContacts = contacts.map((c: any) => ({
+        campaignId: campaignToStart._id,
+        contactId: c._id,
+        status: 'PENDING'
+      }));
+      await CampaignContact.insertMany(newContacts);
+    } else {
+      const newContacts = existingContacts.map(c => ({
+        campaignId: campaignToStart._id,
+        contactId: c.contactId,
+        status: 'PENDING'
+      }));
+      await CampaignContact.insertMany(newContacts);
+    }
+  } else {
+    // It's already a child (history) campaign. If we're restarting it:
+    if (campaignToStart.status === 'COMPLETED' || campaignToStart.status === 'STOPPED' || campaignToStart.status === 'FAILED') {
+      await CampaignContact.updateMany({ campaignId: campaignToStart._id }, { status: 'PENDING' });
+      campaignToStart.pendingCount = campaignToStart.totalContacts;
+      campaignToStart.sentCount = 0;
+      campaignToStart.failedCount = 0;
+      campaignToStart.repliedCount = 0;
+    }
   }
 
-  campaign.status = 'RUNNING';
-  await campaign.save();
+  campaignToStart.status = 'RUNNING';
+  await campaignToStart.save();
 
-  campaignService.startCampaign(id);
+  campaignService.startCampaign(campaignToStart._id.toString());
   
   res.json({ status: 'success', message: 'Campaign started' });
 });

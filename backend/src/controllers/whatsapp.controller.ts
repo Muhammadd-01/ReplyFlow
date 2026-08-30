@@ -3,6 +3,8 @@ import { AuthRequest } from '../types/index.js';
 import { asyncHandler, AppError, NotFoundError } from '../middleware/error-handler.js';
 import WhatsAppSession from '../models/WhatsAppSession.js';
 import { whatsappService } from '../whatsapp/service.js';
+import fs from 'fs';
+import path from 'path';
 
 export const getSessions = asyncHandler(async (req: AuthRequest, res: Response) => {
   const userId = req.user!.id;
@@ -96,4 +98,30 @@ export const disconnectSession = asyncHandler(async (req: AuthRequest, res: Resp
   await whatsappService.disconnect(id);
 
   res.json({ status: 'success', message: 'Session disconnected' });
+});
+
+export const deleteSession = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const userId = req.user!.id;
+
+  const session = await WhatsAppSession.findOne({ _id: id, userId });
+  if (!session) {
+    throw new NotFoundError('Session not found');
+  }
+
+  // Ensure disconnected
+  try {
+    await whatsappService.disconnect(id);
+  } catch (err) {}
+
+  // Delete DB entry
+  await WhatsAppSession.findByIdAndDelete(id);
+
+  // Delete auth folder to ensure it is completely wiped
+  const sessionFolder = path.join(process.cwd(), 'sessions', id);
+  if (fs.existsSync(sessionFolder)) {
+    fs.rmSync(sessionFolder, { recursive: true, force: true });
+  }
+
+  res.json({ status: 'success', message: 'Session deleted successfully' });
 });

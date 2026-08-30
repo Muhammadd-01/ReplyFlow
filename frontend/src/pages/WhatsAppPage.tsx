@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import QRCode from 'react-qr-code';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { QrCode, Smartphone, RefreshCw, LogOut, CheckCircle2 } from 'lucide-react';
+import { QrCode, Smartphone, RefreshCw, LogOut, CheckCircle2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Input from '@/components/ui/Input';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { whatsappApi, WhatsAppSession } from '@/api/whatsapp';
 import { socket } from '@/lib/socket';
 import { useAuth } from '@/store/AuthContext';
@@ -15,10 +16,20 @@ export default function WhatsAppPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [newSessionName, setNewSessionName] = useState('');
+  const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['whatsapp-sessions'],
     queryFn: whatsappApi.getSessions,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => whatsappApi.deleteSession(sessionToDelete!),
+    onSuccess: () => {
+      toast.success('Device deleted successfully');
+      setSessionToDelete(null);
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-sessions'] });
+    }
   });
 
   useEffect(() => {
@@ -112,16 +123,26 @@ export default function WhatsAppPage() {
             </Card>
           ) : (
             sessions.map(session => (
-              <SessionCard key={session.id} session={session} />
+              <SessionCard key={session.id} session={session} onDelete={(id) => setSessionToDelete(id)} />
             ))
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!sessionToDelete}
+        onClose={() => setSessionToDelete(null)}
+        onConfirm={() => deleteMutation.mutate()}
+        title="Delete Device"
+        message="Are you sure you want to delete this device? This will remove it from the database and disconnect it completely."
+        confirmLabel="Delete"
+        isLoading={deleteMutation.isPending}
+      />
     </div>
   );
 }
 
-function SessionCard({ session }: { session: WhatsAppSession }) {
+function SessionCard({ session, onDelete }: { session: WhatsAppSession, onDelete: (id: string) => void }) {
   const queryClient = useQueryClient();
   // Track that user clicked Connect — enables polling immediately
   const [userClickedConnect, setUserClickedConnect] = useState(false);
@@ -152,6 +173,8 @@ function SessionCard({ session }: { session: WhatsAppSession }) {
   const startMutation = useMutation({
     mutationFn: () => whatsappApi.startSession(session.id),
     onSuccess: () => {
+      // Clear any old 'CONNECTED' state from previous polls so we don't immediately cancel polling
+      queryClient.setQueryData(['whatsapp-status', session.id], { status: 'CONNECTING' });
       toast.info('Connecting to WhatsApp...');
       setUserClickedConnect(true);
     }
@@ -162,10 +185,11 @@ function SessionCard({ session }: { session: WhatsAppSession }) {
     onSuccess: () => {
       toast.success('Device disconnected');
       setUserClickedConnect(false);
+      queryClient.setQueryData(['whatsapp-status', session.id], { status: 'DISCONNECTED' });
       queryClient.invalidateQueries({ queryKey: ['whatsapp-sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['whatsapp-status', session.id] });
     }
   });
+
 
   const showQRSection = currentStatus === 'QR_REQUIRED' || (currentStatus === 'CONNECTING' && userClickedConnect);
   const showConnectingOverlay = startMutation.isPending;
@@ -210,7 +234,7 @@ function SessionCard({ session }: { session: WhatsAppSession }) {
           </p>
         </div>
 
-        <div className="flex space-x-2">
+        <div className="flex items-center space-x-2">
           {currentStatus === 'DISCONNECTED' && !userClickedConnect && (
             <Button 
               onClick={() => startMutation.mutate()} 
@@ -230,6 +254,13 @@ function SessionCard({ session }: { session: WhatsAppSession }) {
               Disconnect
             </Button>
           )}
+          <button 
+            onClick={() => onDelete(session.id)}
+            className="p-2 text-red-500 hover:bg-red-50 rounded-lg dark:text-red-400 dark:hover:bg-red-900/30 transition-colors"
+            title="Delete Device"
+          >
+            <Trash2 size={20} />
+          </button>
         </div>
       </div>
 

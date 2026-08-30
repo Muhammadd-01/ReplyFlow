@@ -9,6 +9,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { env } from '../../config/env.js';
 import { WhatsAppProvider } from '../interfaces/provider.js';
+import { pino } from 'pino';
 
 export class BaileysProvider implements WhatsAppProvider {
   private sockets = new Map<string, ReturnType<typeof makeWASocket>>();
@@ -29,6 +30,7 @@ export class BaileysProvider implements WhatsAppProvider {
       auth: state,
       printQRInTerminal: false,
       browser: ['ReplyFlow', 'Chrome', '1.0.0'],
+      logger: pino({ level: 'silent' }) as any,
     });
 
     this.sockets.set(sessionId, sock);
@@ -150,7 +152,14 @@ export class BaileysProvider implements WhatsAppProvider {
   async disconnect(sessionId: string): Promise<void> {
     const sock = this.sockets.get(sessionId);
     if (sock) {
-      await sock.logout('Logout triggered by user');
+      try {
+        await sock.logout('Logout triggered by user');
+      } catch (err) {
+        console.error(`Error during sock.logout for ${sessionId}:`, err);
+      }
+      this.sockets.delete(sessionId);
+      this.qrCodes.delete(sessionId);
+      this.statuses.set(sessionId, 'DISCONNECTED');
     }
   }
 

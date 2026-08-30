@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface ICampaign extends Document {
   userId: mongoose.Types.ObjectId;
   whatsappSessionId: mongoose.Types.ObjectId;
+  parentCampaignId?: mongoose.Types.ObjectId;
   name: string;
   messageTemplate: string;
   status: string;

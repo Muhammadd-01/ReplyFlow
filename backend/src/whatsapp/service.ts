@@ -89,7 +89,7 @@ class WhatsAppService {
             },
             $set: { name }
           },
-          { upsert: true, new: true }
+          { upsert: true, returnDocument: 'after' }
         );
         count++;
       }
@@ -134,7 +134,7 @@ class WhatsAppService {
             },
             $set: { name }
           },
-          { upsert: true, new: true }
+          { upsert: true, returnDocument: 'after' }
         );
 
         await Chat.findOneAndUpdate(
@@ -191,7 +191,7 @@ class WhatsAppService {
             },
             $set: { name }
           },
-          { upsert: true, new: true }
+          { upsert: true, returnDocument: 'after' }
         );
 
         const chat = await Chat.findOneAndUpdate(
@@ -200,7 +200,7 @@ class WhatsAppService {
             $setOnInsert: { userId, sessionId, contactId: contact._id, whatsappJid: remoteJid },
             $set: { name }
           },
-          { upsert: true, new: true }
+          { upsert: true, returnDocument: 'after' }
         );
 
         const content = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '[Media/Other]';
@@ -263,7 +263,7 @@ class WhatsAppService {
             },
             $set: { name }
           },
-          { upsert: true, new: true }
+          { upsert: true, returnDocument: 'after' }
         );
 
         const chat = await Chat.findOneAndUpdate(
@@ -276,7 +276,7 @@ class WhatsAppService {
               lastMessageAt: new Date()
             }
           },
-          { upsert: true, new: true }
+          { upsert: true, returnDocument: 'after' }
         );
 
         const chatMsg = await ChatMessage.findOneAndUpdate(
@@ -290,7 +290,7 @@ class WhatsAppService {
               timestamp: new Date()
             }
           },
-          { upsert: true, new: true }
+          { upsert: true, returnDocument: 'after' }
         );
 
         // Notify client about new chat message

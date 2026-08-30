@@ -96,7 +96,7 @@ export const updateContact = asyncHandler(async (req: AuthRequest, res: Response
   const contact = await Contact.findOneAndUpdate(
     { _id: id, userId },
     { $set: data },
-    { new: true }
+    { returnDocument: 'after' }
   );
 
   if (!contact) throw new NotFoundError('Contact not found');
@@ -122,7 +122,7 @@ export const optOutContact = asyncHandler(async (req: AuthRequest, res: Response
   const contact = await Contact.findOneAndUpdate(
     { _id: id, userId },
     { $set: { isOptedOut: true } },
-    { new: true }
+    { returnDocument: 'after' }
   );
 
   if (!contact) throw new NotFoundError('Contact not found');

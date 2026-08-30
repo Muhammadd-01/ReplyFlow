@@ -5,7 +5,8 @@ import {
   createSession,
   startSession,
   getSessionStatus,
-  disconnectSession
+  disconnectSession,
+  deleteSession
 } from '../controllers/whatsapp.controller.js';
 
 const router = Router();
@@ -17,5 +18,6 @@ router.post('/sessions', createSession);
 router.post('/sessions/:id/start', startSession);
 router.get('/sessions/:id/status', getSessionStatus);
 router.post('/sessions/:id/disconnect', disconnectSession);
+router.delete('/sessions/:id', deleteSession);
 
 export default router;

@@ -11,6 +11,7 @@ import Input from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import Badge from '../components/ui/Badge';
 import EmptyState from '../components/ui/EmptyState';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 import type React from 'react';
 
 export function CampaignsPage() {
@@ -18,6 +19,7 @@ export function CampaignsPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'templates' | 'history'>('templates');
   const [expandedPreviewId, setExpandedPreviewId] = useState<string | null>(null);
+  const [campaignToDelete, setCampaignToDelete] = useState<any>(null);
   
   // Edit Modal State
   const [editingCampaign, setEditingCampaign] = useState<any>(null);
@@ -173,36 +175,38 @@ export function CampaignsPage() {
                     {getStatusBadge(campaign.status)}
                   </div>
                   
-                  <div className="space-y-3 mb-4">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-500 dark:text-slate-400">Progress</span>
-                      <span className="font-medium text-slate-800 dark:text-slate-200">
-                        {campaign.sentCount} / {campaign.totalContacts}
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-200 rounded-full h-2 dark:bg-slate-800/50 overflow-hidden shadow-inner">
-                      <div 
-                        className="bg-gradient-to-r from-cyan-400 to-pink-500 h-2 rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(6,182,212,0.6)]" 
-                        style={{ width: `${Math.max(0, Math.min(100, (campaign.sentCount / (campaign.totalContacts || 1)) * 100))}%` }}
-                      ></div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4 pt-3 border-t border-cyan-500/10">
-                      <div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Replied</p>
-                        <p className="text-lg font-semibold text-cyan-600 dark:text-cyan-400">{campaign.repliedCount}</p>
+                  {activeTab === 'history' && (
+                    <div className="space-y-3 mb-4">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500 dark:text-slate-400">Progress</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {campaign.sentCount} / {campaign.totalContacts}
+                        </span>
                       </div>
-                      <div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Failed</p>
-                        <p className="text-lg font-semibold text-pink-600 dark:text-pink-400">{campaign.failedCount}</p>
+                      <div className="w-full bg-slate-200 rounded-full h-2 dark:bg-slate-800/50 overflow-hidden shadow-inner">
+                        <div 
+                          className="bg-gradient-to-r from-cyan-400 to-pink-500 h-2 rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(6,182,212,0.6)]" 
+                          style={{ width: `${Math.max(0, Math.min(100, (campaign.sentCount / (campaign.totalContacts || 1)) * 100))}%` }}
+                        ></div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4 pt-3 border-t border-cyan-500/10">
+                        <div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Replied</p>
+                          <p className="text-lg font-semibold text-cyan-600 dark:text-cyan-400">{campaign.repliedCount}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Failed</p>
+                          <p className="text-lg font-semibold text-pink-600 dark:text-pink-400">{campaign.failedCount}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Smooth Inline Message Preview */}
                   <div 
                     className={`transition-all duration-300 ease-in-out overflow-hidden ${
-                      isExpanded ? 'max-h-96 opacity-100 mt-4 pt-4 border-t border-cyan-500/10' : 'max-h-0 opacity-0'
+                      (isExpanded || activeTab === 'templates') ? 'max-h-96 opacity-100 mt-4 pt-4 border-t border-cyan-500/10' : 'max-h-0 opacity-0'
                     }`}
                   >
                     <p className="text-xs font-semibold text-cyan-600 dark:text-cyan-400 mb-2 flex items-center gap-1.5">
@@ -218,23 +222,39 @@ export function CampaignsPage() {
                 
                 {/* Actions Bar */}
                 <div className="bg-slate-50/50 dark:bg-slate-900/60 p-4 border-t border-cyan-500/10 flex justify-between items-center relative z-10 backdrop-blur-sm">
-                  <div className="text-xs text-slate-400">
-                    {new Date(campaign.createdAt).toLocaleDateString()}
+                  <div className="text-xs text-slate-400 font-medium">
+                    {activeTab === 'history' ? (
+                      <>Sent on {new Date(campaign.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</>
+                    ) : (
+                      <>
+                        Created {new Date(campaign.createdAt).toLocaleDateString()}
+                        {history.filter((h: any) => h.parentCampaignId === campaign.id).length > 0 && (
+                          <>
+                            <span className="mx-2 text-cyan-500/40">•</span>
+                            <span className="text-cyan-600 dark:text-cyan-400">
+                              Sent {history.filter((h: any) => h.parentCampaignId === campaign.id).length} time(s)
+                            </span>
+                          </>
+                        )}
+                      </>
+                    )}
                   </div>
                   
                   <div className="flex items-center space-x-1.5">
                     {/* Toggle Preview Button */}
-                    <button 
-                      onClick={() => setExpandedPreviewId(isExpanded ? null : campaign.id)}
-                      className={`p-2 rounded-lg transition-colors ${
-                        isExpanded 
-                          ? 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300' 
-                          : 'text-slate-500 hover:bg-cyan-50 dark:text-slate-400 dark:hover:bg-cyan-900/20'
-                      }`}
-                      title={isExpanded ? "Hide Preview" : "Preview Message Below"}
-                    >
-                      {isExpanded ? <EyeOff size={17} /> : <Eye size={17} />}
-                    </button>
+                    {activeTab === 'history' && (
+                      <button 
+                        onClick={() => setExpandedPreviewId(isExpanded ? null : campaign.id)}
+                        className={`p-2 rounded-lg transition-colors ${
+                          isExpanded 
+                            ? 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300' 
+                            : 'text-slate-500 hover:bg-cyan-50 dark:text-slate-400 dark:hover:bg-cyan-900/20'
+                        }`}
+                        title={isExpanded ? "Hide Preview" : "Preview Message Below"}
+                      >
+                        {isExpanded ? <EyeOff size={17} /> : <Eye size={17} />}
+                      </button>
+                    )}
 
                     {/* View Details Button */}
                     <button 
@@ -256,11 +276,7 @@ export function CampaignsPage() {
 
                     {/* Delete Button */}
                     <button 
-                      onClick={() => {
-                        if (confirm(`Delete "${campaign.name}"?`)) {
-                          deleteMutation.mutate(campaign.id);
-                        }
-                      }}
+                      onClick={() => setCampaignToDelete(campaign)}
                       className="p-2 text-pink-500 hover:bg-pink-50 rounded-lg dark:text-pink-400 dark:hover:bg-pink-900/30 transition-colors"
                       title="Delete Campaign"
                     >
@@ -350,6 +366,21 @@ export function CampaignsPage() {
           </form>
         )}
       </Modal>
+
+      <ConfirmDialog
+        isOpen={!!campaignToDelete}
+        onClose={() => setCampaignToDelete(null)}
+        onConfirm={() => {
+          if (campaignToDelete) {
+            deleteMutation.mutate(campaignToDelete.id);
+            setCampaignToDelete(null);
+          }
+        }}
+        title="Delete Campaign"
+        message={`Are you sure you want to delete "${campaignToDelete?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        isLoading={deleteMutation.isPending}
+      />
     </div>
   );
 }
