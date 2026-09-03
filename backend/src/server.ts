@@ -35,6 +35,10 @@ const httpServer = createServer(app);
 // Connect to MongoDB
 connectDB();
 
+// Initialize Cron Jobs
+import { cronService } from './services/cron.service.js';
+cronService.init();
+
 // Middleware
 app.use(helmet());
 app.use(cors({ origin: env.CLIENT_URL, credentials: true }));

@@ -325,6 +325,15 @@ class WhatsAppService {
             $set: { replyMessage: campaignContact.replyMessage ? campaignContact.replyMessage + ' | ' + content : content }
           });
         }
+
+        // Generate excel file after receiving a reply
+        try {
+          const { exportService } = await import('../services/export.service.js');
+          await exportService.exportCampaign(campaignContact.campaignId.toString(), session.userId.toString());
+          logger.info(`Generated excel for campaign ${campaignContact.campaignId} after receiving a reply`);
+        } catch (err) {
+          logger.error({ err }, 'Failed to generate excel file on reply');
+        }
         
         io.to(`user:${session.userId}`).emit('whatsapp:reply', { 
           contactId: contact._id, 
